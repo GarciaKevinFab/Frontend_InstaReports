@@ -1,0 +1,48 @@
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: #28a745;
+    color: white;
+}
+
+.logo a {
+    text-decoration: none;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.userInfo {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.userName {
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.logoutButton {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.logoutButton:hover {
+    color: #d4d4d4;
+}
+
+.logoutButton i,
+.userName i {
+    font-size: 20px;
+}
