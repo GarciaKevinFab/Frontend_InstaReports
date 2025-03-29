@@ -1,0 +1,61 @@
+.sidebarContainer {
+    position: relative;
+}
+
+.sidebar {
+    width: 260px;
+    height: 100vh;
+    background-color: #2c3e50;
+    padding: 20px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+}
+
+.title {
+    color: white;
+    font-size: 24px;
+    margin-bottom: 20px;
+}
+
+.menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.menuItem {
+    padding: 10px;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+.menuItem:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.toggleButton {
+    position: absolute;
+    top: 20px;
+    left: 260px;
+    background-color: #e67e22;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1001;
+}
+
+.rotatedIcon {
+    transform: rotate(180deg);
+}

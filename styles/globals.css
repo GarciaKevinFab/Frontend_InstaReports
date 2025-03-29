@@ -1,0 +1,12 @@
+@import 'remixicon/fonts/remixicon.css';
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f9f9f9;
+}
+
+h1 {
+    text-align: center;
+    margin-top: 20px;
+}

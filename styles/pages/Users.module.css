@@ -1,0 +1,109 @@
+.usersContainer {
+    padding: 20px;
+    background-color: #f5f5f5;
+    /* Fondo neutro para resaltar el contenido */
+}
+
+.header {
+    color: #001f3f;
+    /* Azul marino */
+    font-size: 2rem;
+    margin-bottom: 20px;
+}
+
+.error {
+    color: #8B0000;
+    /* Rojo vino */
+    margin-bottom: 10px;
+}
+
+.createButton {
+    background-color: #8B0000;
+    /* Rojo vino */
+    color: #fff;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.table th {
+    background-color: #001f3f;
+    /* Azul marino */
+    color: #fff;
+    padding: 10px;
+}
+
+.table td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+.actionButton {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #8B0000;
+    /* Rojo vino */
+    margin-right: 5px;
+}
+
+.modal {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    padding: 20px;
+    outline: none;
+}
+
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.modalContent {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.closeButton {
+    background-color: #8B0000;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    align-self: flex-end;
+}
+
+.saveButton {
+    background-color: #8B0000;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
