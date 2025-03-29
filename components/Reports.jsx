@@ -13,7 +13,7 @@ import {
     RiAddCircleLine,
     RiDownloadLine
 } from 'react-icons/ri';
-import styles from '../styles/pages/reports.module.css';
+import styles from '../styles/pages/Reports.module.css';
 import generateReportPDF from '../utils/generateReportPDF';
 import { useAuthContext } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
