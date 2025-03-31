@@ -1,12 +1,11 @@
+// pages/dashboard/technician.js
 import TechLayout from '../../components/TechLayout';
 
-const TechDashboard = () => {
+export default function TechDashboard() {
     return (
         <TechLayout>
-            <h1>Technician Dashboard</h1>
-            <p>Welcome to the Technician Dashboard. Use the sidebar to navigate to Reports.</p>
+            <h1>Bienvenido al Dashboard de Técnico</h1>
+            <p>Este es el dashboard de técnico. Usa la barra lateral para navegar a Reportes.</p>
         </TechLayout>
     );
-};
-
-export default TechDashboard;
+}

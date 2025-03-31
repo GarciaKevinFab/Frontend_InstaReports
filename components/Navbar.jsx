@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuthContext } from '../contexts/AuthContext';
 import styles from '../styles/components/Navbar.module.css';
-import { motion, AnimatePresence } from 'framer-motion';
-import { RiUserLine, RiLogoutBoxLine, RiMenuLine, RiCloseLine } from 'react-icons/ri';
+import { motion } from 'framer-motion';
+import { RiUserLine, RiLogoutBoxLine } from 'react-icons/ri';
+import Logo from '../assets/logo.png';
 
 const Navbar = () => {
     const { user, handleLogout } = useAuthContext();
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const navVariants = {
         hidden: { opacity: 0, y: -30 },
@@ -23,32 +24,6 @@ const Navbar = () => {
         tap: { scale: 0.95 }
     };
 
-    const mobileMenuVariants = {
-        hidden: { opacity: 0, height: 0 },
-        visible: {
-            opacity: 1,
-            height: 'auto',
-            transition: { duration: 0.4, ease: 'easeInOut' }
-        }
-    };
-
-    const mobileItemVariants = {
-        hidden: { opacity: 0, y: -10 },
-        visible: (i) => ({
-            opacity: 1,
-            y: 0,
-            transition: { delay: i * 0.1, duration: 0.3 }
-        })
-    };
-
-    const menuItems = user
-        ? [
-            { text: 'Home', href: '/' },
-            { text: 'Profile', href: '/profile' },
-            { text: 'Logout', action: () => handleLogout() }
-        ]
-        : [{ text: 'Home', href: '/' }];
-
     return (
         <motion.nav
             className={styles.navbar}
@@ -56,16 +31,28 @@ const Navbar = () => {
             initial="hidden"
             animate="visible"
         >
-            <div className={styles.logo}>
+            <div className={styles.logoContainer}>
                 <motion.div
-                    whileHover={{ scale: 1.05, color: '#ff7f50' }}
+                    className={styles.logo}
+                    whileHover={{ scale: 1.05 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                 >
-                    <Link href="/">InstaReports</Link>
+                    <Link href="/">
+                        <Image
+                            src={Logo}
+                            alt="InstaReports Logo"
+                            width={120}
+                            height={80
+
+                            }
+                            priority
+                        />
+                    </Link>
                 </motion.div>
+                <span className={styles.logoText}>SOLUCIONES INFORMÁTICAS</span>
             </div>
 
-            <div className={styles.desktopMenu}>
+            <div className={styles.userSection}>
                 {user && (
                     <motion.div
                         className={styles.userInfo}
@@ -74,7 +61,7 @@ const Navbar = () => {
                         transition={{ delay: 0.3, duration: 0.5 }}
                     >
                         <span className={styles.userName}>
-                            <RiUserLine size={20} style={{ marginRight: '5px' }} /> {user.name}
+                            <RiUserLine size={20} style={{ marginRight: '8px' }} /> {user.name}
                         </span>
                         <motion.button
                             onClick={handleLogout}
@@ -83,57 +70,11 @@ const Navbar = () => {
                             whileHover="hover"
                             whileTap="tap"
                         >
-                            <RiLogoutBoxLine size={20} style={{ marginRight: '5px' }} /> Logout
+                            <RiLogoutBoxLine size={20} style={{ marginRight: '8px' }} /> Cerrar Sesión
                         </motion.button>
                     </motion.div>
                 )}
             </div>
-
-            <motion.div
-                className={styles.mobileToggle}
-                onClick={() => setIsMobileMenuOpen(prev => !prev)}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-            >
-                {isMobileMenuOpen ? <RiCloseLine size={30} /> : <RiMenuLine size={30} />}
-            </motion.div>
-
-            <AnimatePresence>
-                {isMobileMenuOpen && (
-                    <motion.div
-                        className={styles.mobileMenu}
-                        variants={mobileMenuVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="hidden"
-                    >
-                        {menuItems.map((item, index) => (
-                            <motion.div
-                                key={item.text}
-                                custom={index}
-                                variants={mobileItemVariants}
-                                initial="hidden"
-                                animate="visible"
-                            >
-                                {item.href ? (
-                                    <Link href={item.href}>
-                                        <span onClick={() => setIsMobileMenuOpen(false)}>{item.text}</span>
-                                    </Link>
-                                ) : (
-                                    <button
-                                        onClick={() => {
-                                            item.action();
-                                            setIsMobileMenuOpen(false);
-                                        }}
-                                    >
-                                        {item.text}
-                                    </button>
-                                )}
-                            </motion.div>
-                        ))}
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </motion.nav>
     );
 };

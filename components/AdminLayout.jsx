@@ -1,3 +1,4 @@
+// components/AdminLayout.jsx
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthContext } from '../contexts/AuthContext';
@@ -20,6 +21,9 @@ const AdminLayout = ({ children }) => {
         if (user === null) {
             console.log('Redirecting to /login because user is null');
             router.push('/login');
+        } else if (user.role !== 'admin') {
+            console.log('Redirecting to /dashboard/technician because user is not an admin');
+            router.push('/dashboard/technician');
         }
     }, [user, loading, router]);
 
@@ -27,7 +31,7 @@ const AdminLayout = ({ children }) => {
         return <div>Loading...</div>;
     }
 
-    if (!user) {
+    if (!user || user.role !== 'admin') {
         return null;
     }
 
@@ -43,9 +47,9 @@ const AdminLayout = ({ children }) => {
     };
 
     return (
-        <>
+        <div className={styles.layout}>
             <Navbar />
-            <div className={styles.dashboard}>
+            <div className={styles.mainContainer}>
                 <Sidebar onToggle={setIsSidebarVisible} />
                 <motion.div
                     className={styles.content}
@@ -56,7 +60,7 @@ const AdminLayout = ({ children }) => {
                 </motion.div>
             </div>
             <Footer />
-        </>
+        </div>
     );
 };
 

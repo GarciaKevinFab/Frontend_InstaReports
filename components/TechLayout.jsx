@@ -1,8 +1,9 @@
+// components/TechLayout.jsx
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthContext } from '../contexts/AuthContext';
 import Navbar from './Navbar';
-import Sidebar from './TechSidebar';
+import TechSidebar from './TechSidebar';
 import Footer from './Footer';
 import { motion } from 'framer-motion';
 import styles from '../styles/components/AdminDashboard.module.css';
@@ -46,10 +47,10 @@ const TechLayout = ({ children }) => {
     };
 
     return (
-        <>
+        <div className={styles.layout}>
             <Navbar />
-            <div className={styles.dashboard}>
-                <Sidebar onToggle={setIsSidebarVisible} />
+            <div className={styles.mainContainer}>
+                <TechSidebar onToggle={setIsSidebarVisible} />
                 <motion.div
                     className={styles.content}
                     variants={contentVariants}
@@ -59,7 +60,7 @@ const TechLayout = ({ children }) => {
                 </motion.div>
             </div>
             <Footer />
-        </>
+        </div>
     );
 };
 

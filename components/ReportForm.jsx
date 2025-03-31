@@ -1,11 +1,16 @@
+// components/ReportForm.jsx
 import { useState, useEffect } from 'react';
-import { createReport, updateReport } from '../services/reportService';
-import styles from '../styles/components/ReportForm.module.css';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthContext } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
+import { createReport, updateReport } from '../services/reportService';
+import styles from '../styles/components/ReportForm.module.css';
 
 const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, closeModal }) => {
     const { isTechnician } = useAuthContext();
+    const [isLoading, setIsLoading] = useState(false); // Estado de carga para el botón de enviar
+
+    // Inicializar formData con valores por defecto y combinar con initialData si está en modo edición
     const [formData, setFormData] = useState({
         clientName: '',
         clientAddress: '',
@@ -26,14 +31,16 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
         partsOrdered: false,
         readyForPickup: false,
     });
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(false);
 
-    // Cargar datos iniciales si estamos editando
+    // Rellenar formData con initialData cuando está en modo edición
     useEffect(() => {
         if (isEditMode && initialData) {
             setFormData({
-                ...initialData,
+                ...formData,
+                clientName: initialData.clientName || '',
+                clientAddress: initialData.clientAddress || '',
+                clientPhone: initialData.clientPhone || '',
+                clientDNI: initialData.clientDNI || '',
                 equipment: {
                     type: initialData.equipment?.type || '',
                     brand: initialData.equipment?.brand || '',
@@ -41,9 +48,14 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
                     serial: initialData.equipment?.serial || '',
                     patrimonialCode: initialData.equipment?.patrimonialCode || '',
                 },
+                faultDescription: initialData.faultDescription || '',
+                observations: initialData.observations || '',
+                maintenanceType: initialData.maintenanceType || 'Corrective',
+                status: initialData.status || 'Operative',
+                agreedPrice: initialData.agreedPrice || '',
+                comments: initialData.comments || '',
                 receptionDate: initialData.receptionDate ? initialData.receptionDate.split('T')[0] : '',
                 deliveryDate: initialData.deliveryDate ? initialData.deliveryDate.split('T')[0] : '',
-                agreedPrice: initialData.agreedPrice || '',
                 partsRequested: initialData.partsRequested || false,
                 partsDetails: initialData.partsDetails || '',
                 partsOrdered: initialData.partsOrdered || false,
@@ -52,7 +64,6 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
         }
     }, [initialData, isEditMode]);
 
-    // Manejar cambios en los inputs
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData((prev) => ({
@@ -61,7 +72,6 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
         }));
     };
 
-    // Manejar cambios específicos para el equipo
     const handleEquipmentChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({
@@ -70,274 +80,372 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
         }));
     };
 
-    // Manejar cambios para el archivo
     const handleFileChange = (e) => {
-        setFormData((prev) => ({
-            ...prev,
-            files: e.target.files[0],
-        }));
+        setFormData((prev) => ({ ...prev, files: e.target.files[0] }));
     };
 
-    // Validar formulario
-    const validateForm = () => {
-        if (
-            !formData.clientName ||
-            !formData.clientAddress ||
-            !formData.clientPhone ||
-            !formData.clientDNI ||
-            !formData.equipment.type ||
-            !formData.equipment.brand ||
-            !formData.equipment.model ||
-            !formData.faultDescription ||
-            !formData.receptionDate ||
-            !formData.deliveryDate ||
-            (formData.agreedPrice && (isNaN(formData.agreedPrice) || formData.agreedPrice <= 0))
-        ) {
-            setError('Por favor, completa todos los campos obligatorios y asegúrate de que el precio sea válido.');
-            return false;
-        }
-        return true;
-    };
-
-    // Manejar envío del formulario
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError(null);
-        setLoading(true);
-
-        if (!validateForm()) {
-            toast.error('Por favor, completa todos los campos obligatorios.');
-            setLoading(false);
-            return;
-        }
-
+        setIsLoading(true); // Activar estado de carga
         const dataToSubmit = new FormData();
-        Object.keys(formData).forEach((key) => {
+        Object.entries(formData).forEach(([key, value]) => {
             if (key === 'equipment') {
-                Object.keys(formData.equipment).forEach((eqKey) => {
-                    dataToSubmit.append(`equipment[${eqKey}]`, formData.equipment[eqKey] || '');
-                });
-            } else if (key === 'files' && formData.files) {
-                dataToSubmit.append('file', formData.files);
-            } else if (key === 'partsOrdered' && isTechnician) {
-                // Los técnicos no pueden modificar partsOrdered, así que no lo enviamos
-                return;
-            } else {
-                // Asegurarse de que los campos booleanos se envíen como true/false
-                if (['partsRequested', 'partsOrdered', 'readyForPickup'].includes(key)) {
-                    dataToSubmit.append(key, formData[key].toString());
-                } else {
-                    dataToSubmit.append(key, formData[key] || '');
-                }
+                Object.entries(value).forEach(([eqKey, eqValue]) =>
+                    dataToSubmit.append(`equipment[${eqKey}]`, eqValue)
+                );
+            } else if (key !== 'files') {
+                dataToSubmit.append(key, value);
+            } else if (value) {
+                dataToSubmit.append('file', value);
             }
         });
 
-        console.log("🚀 Datos enviados:", Object.fromEntries(dataToSubmit.entries()));
-
         try {
-            if (isEditMode) {
-                await updateReport(initialData._id, dataToSubmit);
-                toast.success('Reporte actualizado correctamente.');
-            } else {
-                await createReport(dataToSubmit);
-                toast.success('Reporte creado correctamente.');
-            }
+            isEditMode
+                ? await updateReport(initialData._id, dataToSubmit)
+                : await createReport(dataToSubmit);
+            toast.success(`Reporte ${isEditMode ? 'actualizado' : 'creado'} correctamente.`);
             refreshReports();
             closeModal();
         } catch (error) {
-            console.error('Error al guardar el reporte:', error);
-            toast.error(error.message || 'Error al guardar el reporte. Por favor, intenta de nuevo.');
+            toast.error('Error al guardar el reporte.');
         } finally {
-            setLoading(false);
+            setIsLoading(false); // Desactivar estado de carga
         }
     };
 
+    const sectionVariants = {
+        hidden: { opacity: 0, y: 20 },
+        visible: (i) => ({
+            opacity: 1,
+            y: 0,
+            transition: { delay: i * 0.1, type: 'spring', stiffness: 100 }
+        })
+    };
+
+    const inputVariants = {
+        hover: { scale: 1.02, transition: { type: 'spring', stiffness: 300 } },
+        focus: { borderColor: '#E30613', boxShadow: '0 0 8px rgba(227, 6, 19, 0.3)' }
+    };
+
+    const buttonVariants = {
+        hover: { scale: 1.05, backgroundColor: '#C20511' },
+        tap: { scale: 0.95 }
+    };
+
     return (
-        <form onSubmit={handleSubmit} className={styles.form}>
-            <h2>{isEditMode ? 'Editar Reporte' : 'Crear Reporte de Servicio'}</h2>
+        <div className={styles.formWrapper}>
+            {/* Botón de Cerrar */}
+            <motion.button
+                className={styles.closeButton}
+                onClick={closeModal}
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                aria-label="Cerrar modal"
+            >
+                ✕
+            </motion.button>
 
-            {error && <p className={styles.error}>{error}</p>}
+            <form onSubmit={handleSubmit} className={styles.form}>
+                <div className={styles.columns}>
+                    {/* Columna 1: Información del Cliente e Información del Equipo */}
+                    <div className={styles.column}>
+                        {/* Información del Cliente */}
+                        <motion.section
+                            className={styles.section}
+                            custom={0}
+                            variants={sectionVariants}
+                            initial="hidden"
+                            animate="visible"
+                        >
+                            <h3>Información del Cliente</h3>
+                            <div className={styles.grid}>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Nombre del Cliente *</label>
+                                    <input
+                                        name="clientName"
+                                        value={formData.clientName}
+                                        placeholder="Nombre del Cliente"
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Dirección *</label>
+                                    <input
+                                        name="clientAddress"
+                                        value={formData.clientAddress}
+                                        placeholder="Dirección"
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Teléfono *</label>
+                                    <input
+                                        name="clientPhone"
+                                        value={formData.clientPhone}
+                                        placeholder="Teléfono"
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>DNI *</label>
+                                    <input
+                                        name="clientDNI"
+                                        value={formData.clientDNI}
+                                        placeholder="DNI"
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </motion.div>
+                            </div>
+                        </motion.section>
 
-            {/* Información del cliente */}
-            <section>
-                <h3>Información del Cliente</h3>
-                <input
-                    name="clientName"
-                    value={formData.clientName}
-                    onChange={handleChange}
-                    placeholder="Nombre del Cliente"
-                    required
-                />
-                <input
-                    name="clientAddress"
-                    value={formData.clientAddress}
-                    onChange={handleChange}
-                    placeholder="Dirección"
-                    required
-                />
-                <input
-                    name="clientPhone"
-                    value={formData.clientPhone}
-                    onChange={handleChange}
-                    placeholder="Teléfono"
-                    required
-                />
-                <input
-                    name="clientDNI"
-                    value={formData.clientDNI}
-                    onChange={handleChange}
-                    placeholder="DNI"
-                    required
-                />
-            </section>
+                        {/* Información del Equipo */}
+                        <motion.section
+                            className={styles.section}
+                            custom={1}
+                            variants={sectionVariants}
+                            initial="hidden"
+                            animate="visible"
+                        >
+                            <h3>Información del Equipo</h3>
+                            <div className={styles.grid}>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Tipo de Equipo *</label>
+                                    <input
+                                        name="type"
+                                        value={formData.equipment.type}
+                                        placeholder="Tipo de Equipo"
+                                        onChange={handleEquipmentChange}
+                                        required
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Marca *</label>
+                                    <input
+                                        name="brand"
+                                        value={formData.equipment.brand}
+                                        placeholder="Marca"
+                                        onChange={handleEquipmentChange}
+                                        required
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Modelo *</label>
+                                    <input
+                                        name="model"
+                                        value={formData.equipment.model}
+                                        placeholder="Modelo"
+                                        onChange={handleEquipmentChange}
+                                        required
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Número de Serie</label>
+                                    <input
+                                        name="serial"
+                                        value={formData.equipment.serial}
+                                        placeholder="Número de Serie"
+                                        onChange={handleEquipmentChange}
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Código Patrimonial</label>
+                                    <input
+                                        name="patrimonialCode"
+                                        value={formData.equipment.patrimonialCode}
+                                        placeholder="Código Patrimonial"
+                                        onChange={handleEquipmentChange}
+                                    />
+                                </motion.div>
+                            </div>
+                        </motion.section>
+                    </div>
 
-            {/* Información del equipo */}
-            <section>
-                <h3>Información del Equipo</h3>
-                <input
-                    name="type"
-                    value={formData.equipment.type}
-                    onChange={handleEquipmentChange}
-                    placeholder="Tipo"
-                    required
-                />
-                <input
-                    name="brand"
-                    value={formData.equipment.brand}
-                    onChange={handleEquipmentChange}
-                    placeholder="Marca"
-                    required
-                />
-                <input
-                    name="model"
-                    value={formData.equipment.model}
-                    onChange={handleEquipmentChange}
-                    placeholder="Modelo"
-                    required
-                />
-                <input
-                    name="serial"
-                    value={formData.equipment.serial}
-                    onChange={handleEquipmentChange}
-                    placeholder="Número de Serie"
-                />
-                <input
-                    name="patrimonialCode"
-                    value={formData.equipment.patrimonialCode}
-                    onChange={handleEquipmentChange}
-                    placeholder="Código Patrimonial"
-                />
-            </section>
+                    {/* Columna 2: Detalles del Servicio */}
+                    <div className={styles.column}>
+                        <motion.section
+                            className={styles.section}
+                            custom={2}
+                            variants={sectionVariants}
+                            initial="hidden"
+                            animate="visible"
+                        >
+                            <h3>Detalles del Servicio</h3>
+                            <div className={styles.grid}>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Descripción de la Falla *</label>
+                                    <textarea
+                                        name="faultDescription"
+                                        value={formData.faultDescription}
+                                        placeholder="Descripción de la Falla"
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Observaciones</label>
+                                    <textarea
+                                        name="observations"
+                                        value={formData.observations}
+                                        placeholder="Observaciones"
+                                        onChange={handleChange}
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Tipo de Mantenimiento</label>
+                                    <select
+                                        name="maintenanceType"
+                                        value={formData.maintenanceType}
+                                        onChange={handleChange}
+                                    >
+                                        <option value="Corrective">Correctivo</option>
+                                        <option value="Preventive">Preventivo</option>
+                                    </select>
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Estado</label>
+                                    <select
+                                        name="status"
+                                        value={formData.status}
+                                        onChange={handleChange}
+                                    >
+                                        <option value="Operative">Operativo</option>
+                                        <option value="Inoperative">Inoperativo</option>
+                                    </select>
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Precio Acordado *</label>
+                                    <input
+                                        type="number"
+                                        name="agreedPrice"
+                                        value={formData.agreedPrice}
+                                        placeholder="Precio Acordado"
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Fecha de Recepción *</label>
+                                    <input
+                                        type="date"
+                                        name="receptionDate"
+                                        value={formData.receptionDate}
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </motion.div>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Fecha de Entrega *</label>
+                                    <input
+                                        type="date"
+                                        name="deliveryDate"
+                                        value={formData.deliveryDate}
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </motion.div>
+                            </div>
+                        </motion.section>
+                    </div>
 
-            {/* Detalles del servicio */}
-            <section>
-                <h3>Detalles del Servicio</h3>
-                <textarea
-                    name="faultDescription"
-                    value={formData.faultDescription}
-                    onChange={handleChange}
-                    placeholder="Descripción de la Falla"
-                    required
-                />
-                <textarea
-                    name="observations"
-                    value={formData.observations}
-                    onChange={handleChange}
-                    placeholder="Observaciones"
-                />
-                <select name="maintenanceType" value={formData.maintenanceType} onChange={handleChange}>
-                    <option value="Corrective">Correctivo</option>
-                    <option value="Preventive">Preventivo</option>
-                </select>
-                <select name="status" value={formData.status} onChange={handleChange}>
-                    <option value="Operative">Operativo</option>
-                    <option value="Inoperative">Inoperativo</option>
-                </select>
-                <input
-                    name="agreedPrice"
-                    type="number"
-                    value={formData.agreedPrice}
-                    onChange={handleChange}
-                    placeholder="Precio Acordado"
-                    required
-                />
-                <input
-                    name="receptionDate"
-                    type="date"
-                    value={formData.receptionDate}
-                    onChange={handleChange}
-                    placeholder="Fecha de Recepción"
-                    required
-                />
-                <input
-                    name="deliveryDate"
-                    type="date"
-                    value={formData.deliveryDate}
-                    onChange={handleChange}
-                    placeholder="Fecha de Entrega"
-                    required
-                />
-            </section>
+                    {/* Columna 3: Solicitud de Partes e Información Adicional */}
+                    <div className={styles.column}>
+                        {/* Solicitud de Partes (solo visible en modo edición) */}
+                        {isEditMode && (
+                            <motion.section
+                                className={styles.section}
+                                custom={3}
+                                variants={sectionVariants}
+                                initial="hidden"
+                                animate="visible"
+                            >
+                                <h3>Solicitud de Partes</h3>
+                                <div className={styles.checkboxGroup}>
+                                    <label className={styles.checkboxLabel}>
+                                        <input
+                                            type="checkbox"
+                                            name="partsRequested"
+                                            checked={formData.partsRequested}
+                                            onChange={handleChange}
+                                            disabled={isTechnician} // Los técnicos no pueden cambiar esto
+                                        />
+                                        Necesita Partes
+                                    </label>
+                                    <label className={styles.checkboxLabel}>
+                                        <input
+                                            type="checkbox"
+                                            name="partsOrdered"
+                                            checked={formData.partsOrdered}
+                                            onChange={handleChange}
+                                            disabled={isTechnician} // Los técnicos no pueden cambiar esto
+                                        />
+                                        Partes Solicitadas
+                                    </label>
+                                </div>
+                                <AnimatePresence>
+                                    {formData.partsRequested && (
+                                        <motion.div
+                                            className={styles.inputWrapper}
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            transition={{ duration: 0.3 }}
+                                        >
+                                            <label>Detalles de las Partes</label>
+                                            <textarea
+                                                name="partsDetails"
+                                                value={formData.partsDetails}
+                                                placeholder="Detalles de las Partes"
+                                                onChange={handleChange}
+                                            />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </motion.section>
+                        )}
 
-            {/* Solicitud de partes */}
-            <section>
-                <h3>Solicitud de Partes</h3>
-                <label>
-                    <input
-                        type="checkbox"
-                        name="partsRequested"
-                        checked={formData.partsRequested}
-                        onChange={handleChange}
-                    />
-                    Necesita Partes
-                </label>
-                {formData.partsRequested && (
-                    <textarea
-                        name="partsDetails"
-                        value={formData.partsDetails}
-                        onChange={handleChange}
-                        placeholder="Detalles de las Partes"
-                    />
-                )}
-                {/* Parts Ordered no se muestra en el formulario para técnicos */}
-                {!isTechnician && (
-                    <label>
-                        <input
-                            type="checkbox"
-                            name="partsOrdered"
-                            checked={formData.partsOrdered}
-                            onChange={handleChange}
-                        />
-                        Partes Solicitadas
-                    </label>
-                )}
-                <label>
-                    <input
-                        type="checkbox"
-                        name="readyForPickup"
-                        checked={formData.readyForPickup}
-                        onChange={handleChange}
-                    />
-                    Listo para Recoger
-                </label>
-            </section>
+                        {/* Información Adicional */}
+                        <motion.section
+                            className={styles.section}
+                            custom={isEditMode ? 4 : 3}
+                            variants={sectionVariants}
+                            initial="hidden"
+                            animate="visible"
+                        >
+                            <h3>Información Adicional</h3>
+                            <div className={styles.grid}>
+                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
+                                    <label>Adjuntar Archivo</label>
+                                    <input
+                                        type="file"
+                                        onChange={handleFileChange}
+                                    />
+                                    {formData.files && <span className={styles.fileName}>{formData.files.name}</span>}
+                                </motion.div>
+                            </div>
+                        </motion.section>
+                    </div>
+                </div>
 
-            {/* Información adicional */}
-            <section>
-                <h3>Información Adicional</h3>
-                <textarea
-                    name="comments"
-                    value={formData.comments}
-                    onChange={handleChange}
-                    placeholder="Comentarios Adicionales"
-                />
-                <input type="file" onChange={handleFileChange} />
-            </section>
-
-            <button type="submit" disabled={loading}>
-                {loading ? 'Guardando...' : (isEditMode ? 'Actualizar Reporte' : 'Crear Reporte')}
-            </button>
-        </form>
+                {/* Botones */}
+                <div className={styles.buttonGroup}>
+                    <motion.button
+                        type="submit"
+                        className={styles.submitButton}
+                        variants={buttonVariants}
+                        whileHover="hover"
+                        whileTap="tap"
+                        disabled={isLoading}
+                    >
+                        {isLoading ? 'Guardando...' : isEditMode ? 'Actualizar' : 'Crear'}
+                    </motion.button>
+                </div>
+            </form>
+        </div>
     );
 };
 

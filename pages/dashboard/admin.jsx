@@ -1,12 +1,11 @@
+// pages/dashboard/admin.js
 import AdminLayout from '../../components/AdminLayout';
 
-const AdminDashboard = () => {
+export default function AdminDashboard() {
     return (
         <AdminLayout>
-            <h2>Welcome to the Admin Dashboard</h2>
-            <p>This is the admin dashboard. Use the sidebar to navigate to Statistics, Users, or Reports.</p>
+            <h1>Bienvenido al Dashboard de Admin</h1>
+            <p>Este es el dashboard de administrador. Usa la barra lateral para navegar a Estadísticas, Usuarios, o Reportes.</p>
         </AdminLayout>
     );
-};
-
-export default AdminDashboard;
+}

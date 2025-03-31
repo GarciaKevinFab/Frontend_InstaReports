@@ -3,6 +3,7 @@ import Modal from 'react-modal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getReports, deleteReport, createReport, updateReport } from '../services/reportService';
 import ReportForm from './ReportForm';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 import TextareaAutosize from 'react-textarea-autosize';
 import {
     RiEditLine,
@@ -11,20 +12,29 @@ import {
     RiCloseCircleLine,
     RiCloseLine,
     RiAddCircleLine,
-    RiDownloadLine
+    RiDownloadLine,
+    RiFileList3Line,
+    RiSaveLine,
 } from 'react-icons/ri';
 import styles from '../styles/pages/Reports.module.css';
 import generateReportPDF from '../utils/generateReportPDF';
 import { useAuthContext } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
-// Componente para editar el texto de "Parts Details" con acciones
+// Component for editing "Parts Details" with actions
 function EditablePartsDetails({ initialValue, onSave, isTechnician }) {
     const [value, setValue] = useState(initialValue);
 
-    // Si se cancela, simplemente se reinicia el valor al original
     const handleCancel = () => {
         setValue(initialValue);
+    };
+
+    const handleSave = () => {
+        if (!value.trim()) {
+            toast.error('Por favor, ingresa los detalles de las partes');
+            return;
+        }
+        onSave(value);
     };
 
     return (
@@ -32,7 +42,7 @@ function EditablePartsDetails({ initialValue, onSave, isTechnician }) {
             <TextareaAutosize
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                placeholder="Enter parts needed"
+                placeholder="Ingresa las partes necesarias"
                 className={styles.partsInput}
                 minRows={2}
                 style={{ width: '100%' }}
@@ -40,13 +50,15 @@ function EditablePartsDetails({ initialValue, onSave, isTechnician }) {
             <div className={styles.textareaActions}>
                 <RiCheckboxCircleLine
                     size={20}
-                    onClick={() => onSave(value)}
+                    onClick={handleSave}
                     className={styles.saveIcon}
+                    title="Guardar detalles"
                 />
                 <RiCloseLine
                     size={20}
                     onClick={handleCancel}
                     className={styles.cancelIcon}
+                    title="Cancelar"
                 />
             </div>
         </div>
@@ -60,42 +72,53 @@ const Reports = () => {
     const [editingReport, setEditingReport] = useState(null);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [reportToDelete, setReportToDelete] = useState(null);
 
-    // Cargar reportes al montar el componente
+    // Fetch reports on component mount
     useEffect(() => {
         const fetchReports = async () => {
             try {
                 const data = await getReports();
                 setReports(data);
             } catch (err) {
-                toast.error(err.message || 'Error fetching reports');
-                console.error('Error in fetchReports:', err);
+                toast.error(err.message || 'Error al obtener los reportes');
+                console.error('Error en fetchReports:', err);
             }
         };
         fetchReports();
     }, []);
 
     const handleDelete = async (id) => {
-        const confirmDelete = window.confirm('Are you sure you want to delete this report?');
-        if (!confirmDelete) return;
-
         try {
             await deleteReport(id);
             setReports(reports.filter((report) => report._id !== id));
             toast.success('Reporte eliminado correctamente.');
+            setIsDeleteModalOpen(false);
         } catch (err) {
-            toast.error(err.message || 'Error deleting report');
-            console.error('Error in handleDelete:', err);
+            toast.error(err.message || 'Error al eliminar el reporte');
+            console.error('Error en handleDelete:', err);
         }
+    };
+
+    const openDeleteModal = (id) => {
+        setReportToDelete(id);
+        setIsDeleteModalOpen(true);
+    };
+
+    const closeDeleteModal = () => {
+        setReportToDelete(null);
+        setIsDeleteModalOpen(false);
     };
 
     const refreshReports = async () => {
         try {
             const data = await getReports();
             setReports(data);
+            toast.success('Reportes actualizados correctamente');
         } catch (err) {
-            toast.error(err.message || 'Error refreshing reports');
-            console.error('Error in refreshReports:', err);
+            toast.error(err.message || 'Error al refrescar los reportes');
+            console.error('Error en refreshReports:', err);
         }
     };
 
@@ -107,8 +130,8 @@ const Reports = () => {
             ));
             toast.success(`Reporte marcado como ${updatedReport.readyForPickup ? 'listo' : 'no listo'} para recoger.`);
         } catch (err) {
-            toast.error(err.message || 'Error updating report');
-            console.error('Error in toggleReadyForPickup:', err);
+            toast.error(err.message || 'Error al actualizar el reporte');
+            console.error('Error en toggleReadyForPickup:', err);
         }
     };
 
@@ -120,8 +143,8 @@ const Reports = () => {
             ));
             toast.success(`Reporte ${updatedReport.partsRequested ? 'marcado como necesita partes' : 'desmarcado de necesitar partes'}.`);
         } catch (err) {
-            toast.error(err.message || 'Error updating report');
-            console.error('Error in toggleNeedsParts:', err);
+            toast.error(err.message || 'Error al actualizar el reporte');
+            console.error('Error en toggleNeedsParts:', err);
         }
     };
 
@@ -133,12 +156,17 @@ const Reports = () => {
             ));
             toast.success('Detalles de las partes guardados correctamente.');
         } catch (err) {
-            toast.error(err.message || 'Error updating report');
-            console.error('Error in savePartsDetails:', err);
+            toast.error(err.message || 'Error al actualizar el reporte');
+            console.error('Error en savePartsDetails:', err);
         }
     };
 
     const togglePartsOrdered = async (id, currentState) => {
+        const report = reports.find(r => r._id === id);
+        if (!report.partsRequested && !currentState) {
+            toast.error('No puedes marcar "Partes Solicitadas" si no has marcado "Necesita Partes".');
+            return;
+        }
         try {
             const updatedReport = await updateReport(id, { partsOrdered: !currentState });
             setReports(reports.map(report =>
@@ -146,14 +174,32 @@ const Reports = () => {
             ));
             toast.success(`Partes ${updatedReport.partsOrdered ? 'marcadas como solicitadas' : 'desmarcadas como solicitadas'}.`);
         } catch (err) {
-            toast.error(err.message || 'Error updating report');
-            console.error('Error in togglePartsOrdered:', err);
+            toast.error(err.message || 'Error al actualizar el reporte');
+            console.error('Error en togglePartsOrdered:', err);
         }
+    };
+
+    // Animation variants for modals and table rows
+    const modalVariants = {
+        hidden: { opacity: 0, scale: 0.9 },
+        visible: { opacity: 1, scale: 1 },
+        exit: { opacity: 0, scale: 0.9 }
+    };
+
+    const rowVariants = {
+        hidden: { opacity: 0, y: 20 },
+        visible: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -20 }
     };
 
     return (
         <div className={styles.reportsContainer}>
-            <h2 className={styles.header}>Reports</h2>
+            <h2 className={styles.header}>
+                <RiFileList3Line size={28} style={{ marginRight: '8px' }} /> Reportes
+            </h2>
+            <p className={styles.description}>
+                Gestiona y visualiza los reportes de equipos, incluyendo su estado, partes necesarias y disponibilidad.
+            </p>
             {error && (
                 <motion.p
                     className={styles.error}
@@ -165,28 +211,31 @@ const Reports = () => {
                 </motion.p>
             )}
 
-            {/* Permitir a todos (admins y técnicos) crear reportes */}
+            {/* Allow all users (admins and technicians) to create reports */}
             <motion.button
                 onClick={() => setIsCreateModalOpen(true)}
                 className={styles.createButton}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
             >
                 <RiAddCircleLine size={20} style={{ marginRight: '8px' }} />
-                Create Report
+                Crear Reporte
             </motion.button>
 
             <table className={styles.table}>
                 <thead>
                     <tr>
-                        <th>Client Name</th>
-                        <th>Equipment</th>
-                        <th>Status</th>
-                        <th>Needs Parts</th>
-                        <th>Parts Details</th>
-                        <th>Parts Ordered</th>
-                        <th>Ready for Pickup</th>
-                        <th>Actions</th>
+                        <th>Nombre del Cliente</th>
+                        <th>Equipo</th>
+                        <th>Estado</th>
+                        <th>Necesita Partes</th>
+                        <th>Detalles de Partes</th>
+                        <th>Partes Solicitadas</th>
+                        <th>Listo para Recoger</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -194,9 +243,10 @@ const Reports = () => {
                         {reports.map((report) => (
                             <motion.tr
                                 key={report._id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
+                                initial="hidden"
+                                animate="visible"
+                                exit="exit"
+                                variants={rowVariants}
                                 whileHover={{ scale: 1.01 }}
                                 transition={{ duration: 0.3 }}
                             >
@@ -206,9 +256,9 @@ const Reports = () => {
                                         ? `${report.equipment.type} - ${report.equipment.brand} (${report.equipment.model})`
                                         : 'N/A'}
                                 </td>
-                                <td>{report.status}</td>
+                                <td>{report.status === 'Operative' ? 'Operativo' : 'Inoperativo'}</td>
 
-                                {/* Switch para "Needs Parts" - Técnicos y admins pueden modificarlo */}
+                                {/* Switch for "Needs Parts" - Technicians and admins can modify */}
                                 <td>
                                     <label className={styles.switch}>
                                         <input
@@ -220,7 +270,7 @@ const Reports = () => {
                                     </label>
                                 </td>
 
-                                {/* Editable Parts Details - Técnicos y admins pueden editar */}
+                                {/* Editable Parts Details - Technicians and admins can edit */}
                                 <td>
                                     {report.partsRequested ? (
                                         <EditablePartsDetails
@@ -233,10 +283,10 @@ const Reports = () => {
                                     )}
                                 </td>
 
-                                {/* Mostrar "Parts Ordered" - Técnicos solo pueden verlo, admins pueden modificarlo */}
+                                {/* Show "Parts Ordered" - Technicians can only view, admins can modify */}
                                 <td>
                                     {isTechnician ? (
-                                        report.partsOrdered ? 'Yes' : 'No'
+                                        report.partsOrdered ? 'Sí' : 'No'
                                     ) : (
                                         <label className={styles.switch}>
                                             <input
@@ -249,7 +299,7 @@ const Reports = () => {
                                     )}
                                 </td>
 
-                                {/* Ready for Pickup - Técnicos y admins pueden modificarlo */}
+                                {/* Ready for Pickup - Technicians and admins can modify */}
                                 <td
                                     onDoubleClick={() => toggleReadyForPickup(report._id, report.readyForPickup)}
                                     className={report.readyForPickup ? styles.ready : styles.notReady}
@@ -257,28 +307,28 @@ const Reports = () => {
                                     {report.readyForPickup ? (
                                         <span className={styles.readyText}>
                                             <RiCheckboxCircleLine size={18} style={{ marginRight: '5px' }} />
-                                            Ready
+                                            Listo
                                         </span>
                                     ) : (
                                         <span className={styles.notReadyText}>
                                             <RiCloseCircleLine size={18} style={{ marginRight: '5px' }} />
-                                            Not Ready
+                                            No Listo
                                         </span>
                                     )}
                                 </td>
 
                                 <td>
-                                    {/* Botón de descarga para todos (admins y técnicos) */}
+                                    {/* Download button for all users (admins and technicians) */}
                                     <motion.button
                                         onClick={() => generateReportPDF(report)}
                                         className={`${styles.actionButton} ${styles.downloadButton}`}
                                         whileHover={{ scale: 1.1 }}
-                                        title="Download PDF"
+                                        title="Descargar PDF"
                                     >
                                         <RiDownloadLine size={20} />
                                     </motion.button>
 
-                                    {/* Solo los administradores pueden editar o eliminar */}
+                                    {/* Only admins can edit or delete */}
                                     {!isTechnician && (
                                         <>
                                             <motion.button
@@ -288,13 +338,15 @@ const Reports = () => {
                                                 }}
                                                 className={styles.actionButton}
                                                 whileHover={{ scale: 1.1 }}
+                                                title="Editar reporte"
                                             >
                                                 <RiEditLine size={20} />
                                             </motion.button>
                                             <motion.button
-                                                onClick={() => handleDelete(report._id)}
+                                                onClick={() => openDeleteModal(report._id)}
                                                 className={styles.actionButton}
                                                 whileHover={{ scale: 1.1 }}
+                                                title="Eliminar reporte"
                                             >
                                                 <RiDeleteBin6Line size={20} />
                                             </motion.button>
@@ -307,7 +359,7 @@ const Reports = () => {
                 </tbody>
             </table>
 
-            {/* Modal para crear reporte - Disponible para todos */}
+            {/* Modal for creating a report - Available to all */}
             <Modal
                 isOpen={isCreateModalOpen}
                 onRequestClose={() => setIsCreateModalOpen(false)}
@@ -317,28 +369,23 @@ const Reports = () => {
             >
                 <motion.div
                     className={styles.modalContent}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
+                    variants={modalVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
                     transition={{ duration: 0.3 }}
                 >
+                    <h3 className={styles.modalHeader}>
+                        <RiFileList3Line size={24} style={{ marginRight: '8px' }} /> Crear Reporte
+                    </h3>
                     <ReportForm
                         refreshReports={refreshReports}
                         closeModal={() => setIsCreateModalOpen(false)}
                     />
-                    <motion.button
-                        onClick={() => setIsCreateModalOpen(false)}
-                        className={styles.closeButton}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                    >
-                        <RiCloseLine size={20} style={{ marginRight: '5px' }} />
-                        Close
-                    </motion.button>
                 </motion.div>
             </Modal>
 
-            {/* Modal para editar reporte - Solo admins */}
+            {/* Modal for editing a report - Only admins */}
             {!isTechnician && (
                 <Modal
                     isOpen={isEditModalOpen}
@@ -349,11 +396,15 @@ const Reports = () => {
                 >
                     <motion.div
                         className={styles.modalContent}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
+                        variants={modalVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit="exit"
                         transition={{ duration: 0.3 }}
                     >
+                        <h3 className={styles.modalHeader}>
+                            <RiEditLine size={24} style={{ marginRight: '8px' }} /> Editar Reporte
+                        </h3>
                         {editingReport && (
                             <ReportForm
                                 refreshReports={refreshReports}
@@ -362,18 +413,17 @@ const Reports = () => {
                                 closeModal={() => setIsEditModalOpen(false)}
                             />
                         )}
-                        <motion.button
-                            onClick={() => setIsEditModalOpen(false)}
-                            className={styles.closeButton}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                        >
-                            <RiCloseLine size={20} style={{ marginRight: '5px' }} />
-                            Close
-                        </motion.button>
                     </motion.div>
                 </Modal>
             )}
+
+            {/* Modal for confirming deletion */}
+            <ConfirmDeleteModal
+                isOpen={isDeleteModalOpen}
+                onRequestClose={closeDeleteModal}
+                onConfirm={handleDelete}
+                reportId={reportToDelete}
+            />
         </div>
     );
 };

@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getUsers, deleteUser, createUser, updateUser } from '../../services/userService';
 import AdminLayout from '../../components/AdminLayout';
 import styles from '../../styles/pages/Users.module.css';
-import { RiAddCircleLine, RiEditLine, RiDeleteBin6Line, RiSaveLine } from 'react-icons/ri';
+import { RiAddCircleLine, RiEditLine, RiDeleteBin6Line, RiSaveLine, RiCloseLine, RiUserAddLine, RiUserSettingsLine } from 'react-icons/ri';
+import { toast } from 'react-toastify';
 
 const Users = () => {
     const [users, setUsers] = useState([]);
@@ -14,68 +15,90 @@ const Users = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-    // Obtener usuarios al montar el componente
+    // Fetch users on component mount
     useEffect(() => {
         const fetchUsers = async () => {
             try {
                 const data = await getUsers();
                 setUsers(data);
             } catch (err) {
-                setError('Error fetching users');
+                setError('Error al obtener los usuarios');
+                toast.error('Error al obtener los usuarios');
             }
         };
         fetchUsers();
     }, []);
 
-    // Eliminar usuario
+    // Delete user
     const handleDelete = async (id) => {
         try {
             await deleteUser(id);
             setUsers(users.filter((user) => user._id !== id));
+            toast.success('Usuario eliminado correctamente');
         } catch (err) {
-            setError('Error deleting user');
+            setError('Error al eliminar el usuario');
+            toast.error('Error al eliminar el usuario');
         }
     };
 
-    // Crear usuario
+    // Create user
     const handleCreate = async () => {
+        if (!newUser.name || !newUser.email || !newUser.password) {
+            toast.error('Por favor, completa todos los campos');
+            return;
+        }
         try {
             const user = await createUser(newUser);
             setUsers([...users, user]);
             setNewUser({ name: '', email: '', role: 'technician', password: '' });
             setIsCreateModalOpen(false);
+            toast.success('Usuario creado correctamente');
         } catch (err) {
-            setError('Error creating user');
+            setError('Error al crear el usuario');
+            toast.error('Error al crear el usuario');
         }
     };
 
-    // Actualizar usuario
+    // Update user
     const handleUpdate = async () => {
+        if (!editingUser.name || !editingUser.email) {
+            toast.error('Por favor, completa todos los campos');
+            return;
+        }
         try {
             const updatedUser = await updateUser(editingUser._id, editingUser);
             setUsers(users.map((user) => (user._id === updatedUser._id ? updatedUser : user)));
             setEditingUser(null);
             setIsEditModalOpen(false);
+            toast.success('Usuario actualizado correctamente');
         } catch (err) {
-            setError('Error updating user');
+            setError('Error al actualizar el usuario');
+            toast.error('Error al actualizar el usuario');
         }
     };
 
-    // Variantes para animar modales y filas de la tabla
+    // Animation variants for modals and table rows
     const modalVariants = {
         hidden: { opacity: 0, scale: 0.9 },
-        visible: { opacity: 1, scale: 1 }
+        visible: { opacity: 1, scale: 1 },
+        exit: { opacity: 0, scale: 0.9 }
     };
 
     const rowVariants = {
         hidden: { opacity: 0, y: 20 },
-        visible: { opacity: 1, y: 0 }
+        visible: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -20 }
     };
 
     return (
         <AdminLayout>
             <div className={styles.usersContainer}>
-                <h2 className={styles.header}>Users</h2>
+                <h2 className={styles.header}>
+                    <RiUserSettingsLine size={28} style={{ marginRight: '8px' }} /> Usuarios
+                </h2>
+                <p className={styles.description}>
+                    Gestiona los usuarios del sistema, incluyendo creación, edición y eliminación de cuentas.
+                </p>
                 {error && (
                     <motion.p
                         className={styles.error}
@@ -87,24 +110,27 @@ const Users = () => {
                     </motion.p>
                 )}
 
-                {/* Botón para abrir el modal de creación */}
+                {/* Button to open create user modal */}
                 <motion.button
                     onClick={() => setIsCreateModalOpen(true)}
                     className={styles.createButton}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
                 >
-                    <RiAddCircleLine size={20} style={{ marginRight: '5px' }} /> Create User
+                    <RiAddCircleLine size={20} style={{ marginRight: '8px' }} /> Crear Usuario
                 </motion.button>
 
-                {/* Tabla de usuarios */}
+                {/* Users table */}
                 <table className={styles.table}>
                     <thead>
                         <tr>
-                            <th>Name</th>
+                            <th>Nombre</th>
                             <th>Email</th>
-                            <th>Role</th>
-                            <th>Actions</th>
+                            <th>Rol</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -114,13 +140,14 @@ const Users = () => {
                                     key={user._id}
                                     initial="hidden"
                                     animate="visible"
-                                    exit="hidden"
+                                    exit="exit"
                                     variants={rowVariants}
                                     transition={{ duration: 0.3 }}
+                                    whileHover={{ scale: 1.01 }}
                                 >
                                     <td>{user.name}</td>
                                     <td>{user.email}</td>
-                                    <td>{user.role}</td>
+                                    <td>{user.role === 'technician' ? 'Técnico' : 'Administrador'}</td>
                                     <td>
                                         <motion.button
                                             onClick={() => {
@@ -129,6 +156,7 @@ const Users = () => {
                                             }}
                                             className={styles.actionButton}
                                             whileHover={{ scale: 1.1 }}
+                                            title="Editar usuario"
                                         >
                                             <RiEditLine size={20} />
                                         </motion.button>
@@ -136,6 +164,7 @@ const Users = () => {
                                             onClick={() => handleDelete(user._id)}
                                             className={styles.actionButton}
                                             whileHover={{ scale: 1.1 }}
+                                            title="Eliminar usuario"
                                         >
                                             <RiDeleteBin6Line size={20} />
                                         </motion.button>
@@ -146,7 +175,7 @@ const Users = () => {
                     </tbody>
                 </table>
 
-                {/* Modal para crear usuario */}
+                {/* Modal for creating a user */}
                 <Modal
                     isOpen={isCreateModalOpen}
                     onRequestClose={() => setIsCreateModalOpen(false)}
@@ -156,58 +185,74 @@ const Users = () => {
                 >
                     <motion.div
                         className={styles.modalContent}
+                        variants={modalVariants}
                         initial="hidden"
                         animate="visible"
-                        exit="hidden"
-                        variants={modalVariants}
+                        exit="exit"
                         transition={{ duration: 0.3 }}
                     >
-                        <h3>Create User</h3>
-                        <input
-                            type="text"
-                            placeholder="Name"
-                            value={newUser.name}
-                            onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                        />
-                        <input
-                            type="email"
-                            placeholder="Email"
-                            value={newUser.email}
-                            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                        />
-                        <input
-                            type="password"
-                            placeholder="Password"
-                            value={newUser.password}
-                            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        />
-                        <select
-                            value={newUser.role}
-                            onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                        >
-                            <option value="technician">Technician</option>
-                            <option value="admin">Admin</option>
-                        </select>
-                        <motion.button
-                            onClick={handleCreate}
-                            className={styles.saveButton}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                        >
-                            <RiAddCircleLine size={20} style={{ marginRight: '5px' }} /> Save
-                        </motion.button>
-                        <motion.button
-                            onClick={() => setIsCreateModalOpen(false)}
-                            className={styles.closeButton}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                        >
-                            Close
-                        </motion.button>
+                        <h3 className={styles.modalHeader}>
+                            <RiUserAddLine size={24} style={{ marginRight: '8px' }} /> Crear Usuario
+                        </h3>
+                        <div className={styles.formGroup}>
+                            <label>Nombre</label>
+                            <input
+                                type="text"
+                                placeholder="Ingresa el nombre"
+                                value={newUser.name}
+                                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                            />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label>Email</label>
+                            <input
+                                type="email"
+                                placeholder="Ingresa el email"
+                                value={newUser.email}
+                                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                            />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label>Contraseña</label>
+                            <input
+                                type="password"
+                                placeholder="Ingresa la contraseña"
+                                value={newUser.password}
+                                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                            />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label>Rol</label>
+                            <select
+                                value={newUser.role}
+                                onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                            >
+                                <option value="technician">Técnico</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+                        </div>
+                        <div className={styles.modalActions}>
+                            <motion.button
+                                onClick={handleCreate}
+                                className={styles.saveButton}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                <RiSaveLine size={20} style={{ marginRight: '8px' }} /> Guardar
+                            </motion.button>
+                            <motion.button
+                                onClick={() => setIsCreateModalOpen(false)}
+                                className={styles.closeButton}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                <RiCloseLine size={20} style={{ marginRight: '8px' }} /> Cerrar
+                            </motion.button>
+                        </div>
                     </motion.div>
                 </Modal>
 
-                {/* Modal para editar usuario */}
+                {/* Modal for editing a user */}
                 <Modal
                     isOpen={isEditModalOpen}
                     onRequestClose={() => setIsEditModalOpen(false)}
@@ -217,50 +262,63 @@ const Users = () => {
                 >
                     <motion.div
                         className={styles.modalContent}
+                        variants={modalVariants}
                         initial="hidden"
                         animate="visible"
-                        exit="hidden"
-                        variants={modalVariants}
+                        exit="exit"
                         transition={{ duration: 0.3 }}
                     >
-                        <h3>Edit User</h3>
+                        <h3 className={styles.modalHeader}>
+                            <RiUserSettingsLine size={24} style={{ marginRight: '8px' }} /> Editar Usuario
+                        </h3>
                         {editingUser && (
                             <>
-                                <input
-                                    type="text"
-                                    value={editingUser.name}
-                                    onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                                />
-                                <input
-                                    type="email"
-                                    value={editingUser.email}
-                                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                                />
-                                <select
-                                    value={editingUser.role}
-                                    onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
-                                >
-                                    <option value="technician">Technician</option>
-                                    <option value="admin">Admin</option>
-                                </select>
-                                <motion.button
-                                    onClick={handleUpdate}
-                                    className={styles.saveButton}
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                >
-                                    <RiSaveLine size={20} style={{ marginRight: '5px' }} /> Save
-                                </motion.button>
+                                <div className={styles.formGroup}>
+                                    <label>Nombre</label>
+                                    <input
+                                        type="text"
+                                        value={editingUser.name}
+                                        onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                                    />
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label>Email</label>
+                                    <input
+                                        type="email"
+                                        value={editingUser.email}
+                                        onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                                    />
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label>Rol</label>
+                                    <select
+                                        value={editingUser.role}
+                                        onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                                    >
+                                        <option value="technician">Técnico</option>
+                                        <option value="admin">Administrador</option>
+                                    </select>
+                                </div>
+                                <div className={styles.modalActions}>
+                                    <motion.button
+                                        onClick={handleUpdate}
+                                        className={styles.saveButton}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                    >
+                                        <RiSaveLine size={20} style={{ marginRight: '8px' }} /> Guardar
+                                    </motion.button>
+                                    <motion.button
+                                        onClick={() => setIsEditModalOpen(false)}
+                                        className={styles.closeButton}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                    >
+                                        <RiCloseLine size={20} style={{ marginRight: '8px' }} /> Cerrar
+                                    </motion.button>
+                                </div>
                             </>
                         )}
-                        <motion.button
-                            onClick={() => setIsEditModalOpen(false)}
-                            className={styles.closeButton}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                        >
-                            Close
-                        </motion.button>
                     </motion.div>
                 </Modal>
             </div>
