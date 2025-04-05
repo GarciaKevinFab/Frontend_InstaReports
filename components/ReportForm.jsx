@@ -6,9 +6,49 @@ import { toast } from 'react-toastify';
 import { createReport, updateReport } from '../services/reportService';
 import styles from '../styles/components/ReportForm.module.css';
 
+// Common equipment types and brands
+const EQUIPMENT_TYPES = [
+    'PC Desktop',
+    'Laptop',
+    'All-in-One',
+    'Impresora',
+    'Monitor',
+    'Escáner',
+    'Servidor',
+    'Tablet',
+    'Smartphone',
+    'Dispositivo de Red',
+    'UPS',
+    'Custom/Genérico',
+    'Otro'
+];
+
+const EQUIPMENT_BRANDS = [
+    'HP',
+    'Dell',
+    'Lenovo',
+    'Apple',
+    'Asus',
+    'Acer',
+    'Samsung',
+    'LG',
+    'MSI',
+    'Toshiba',
+    'Sony',
+    'Canon',
+    'Epson',
+    'Brother',
+    'Cisco',
+    'Custom/Genérico',
+    'Otro'
+];
+
 const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, closeModal }) => {
     const { isTechnician } = useAuthContext();
-    const [isLoading, setIsLoading] = useState(false); // Estado de carga para el botón de enviar
+    const [isLoading, setIsLoading] = useState(false);
+    const [showCustomBrand, setShowCustomBrand] = useState(false);
+    const [showCustomType, setShowCustomType] = useState(false);
+    const [activeTab, setActiveTab] = useState(0);
 
     // Inicializar formData con valores por defecto y combinar con initialData si está en modo edición
     const [formData, setFormData] = useState({
@@ -16,7 +56,15 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
         clientAddress: '',
         clientPhone: '',
         clientDNI: '',
-        equipment: { type: '', brand: '', model: '', serial: '', patrimonialCode: '' },
+        equipment: {
+            type: '',
+            customType: '',
+            brand: '',
+            customBrand: '',
+            model: '',
+            serial: '',
+            patrimonialCode: ''
+        },
         faultDescription: '',
         observations: '',
         maintenanceType: 'Corrective',
@@ -32,9 +80,28 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
         readyForPickup: false,
     });
 
+    // Definición de las pestañas
+    const tabs = [
+        { id: 0, name: 'Cliente' },
+        { id: 1, name: 'Equipo' },
+        { id: 2, name: 'Servicio' },
+        ...(isEditMode ? [{ id: 3, name: 'Partes' }] : []),
+        { id: isEditMode ? 4 : 3, name: 'Adicional' }
+    ];
+
     // Rellenar formData con initialData cuando está en modo edición
     useEffect(() => {
         if (isEditMode && initialData) {
+            const equipmentType = initialData.equipment?.type || '';
+            const equipmentBrand = initialData.equipment?.brand || '';
+
+            // Determinar si son tipos o marcas personalizados
+            const isCustomType = !EQUIPMENT_TYPES.includes(equipmentType) && equipmentType !== '';
+            const isCustomBrand = !EQUIPMENT_BRANDS.includes(equipmentBrand) && equipmentBrand !== '';
+
+            setShowCustomType(isCustomType);
+            setShowCustomBrand(isCustomBrand);
+
             setFormData({
                 ...formData,
                 clientName: initialData.clientName || '',
@@ -42,8 +109,10 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
                 clientPhone: initialData.clientPhone || '',
                 clientDNI: initialData.clientDNI || '',
                 equipment: {
-                    type: initialData.equipment?.type || '',
-                    brand: initialData.equipment?.brand || '',
+                    type: isCustomType ? 'Otro' : equipmentType,
+                    customType: isCustomType ? equipmentType : '',
+                    brand: isCustomBrand ? 'Otro' : equipmentBrand,
+                    customBrand: isCustomBrand ? equipmentBrand : '',
                     model: initialData.equipment?.model || '',
                     serial: initialData.equipment?.serial || '',
                     patrimonialCode: initialData.equipment?.patrimonialCode || '',
@@ -74,6 +143,15 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
 
     const handleEquipmentChange = (e) => {
         const { name, value } = e.target;
+
+        if (name === 'type') {
+            setShowCustomType(value === 'Otro' || value === 'Custom/Genérico');
+        }
+
+        if (name === 'brand') {
+            setShowCustomBrand(value === 'Otro' || value === 'Custom/Genérico');
+        }
+
         setFormData((prev) => ({
             ...prev,
             equipment: { ...prev.equipment, [name]: value },
@@ -86,19 +164,38 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setIsLoading(true); // Activar estado de carga
+        setIsLoading(true);
+
+        // Preparar los datos del equipo
+        const equipmentData = { ...formData.equipment };
+        if (showCustomType && equipmentData.customType) {
+            equipmentData.type = equipmentData.customType;
+        }
+        if (showCustomBrand && equipmentData.customBrand) {
+            equipmentData.brand = equipmentData.customBrand;
+        }
+
         const dataToSubmit = new FormData();
+
+        // Agregar todos los campos excepto equipment y files
         Object.entries(formData).forEach(([key, value]) => {
-            if (key === 'equipment') {
-                Object.entries(value).forEach(([eqKey, eqValue]) =>
-                    dataToSubmit.append(`equipment[${eqKey}]`, eqValue)
-                );
-            } else if (key !== 'files') {
+            if (key !== 'equipment' && key !== 'files') {
                 dataToSubmit.append(key, value);
-            } else if (value) {
-                dataToSubmit.append('file', value);
             }
         });
+
+        // Agregar los campos de equipment
+        Object.entries(equipmentData).forEach(([eqKey, eqValue]) => {
+            // No incluir los campos customType y customBrand en la data final
+            if (eqKey !== 'customType' && eqKey !== 'customBrand') {
+                dataToSubmit.append(`equipment[${eqKey}]`, eqValue);
+            }
+        });
+
+        // Agregar el archivo si existe
+        if (formData.files) {
+            dataToSubmit.append('file', formData.files);
+        }
 
         try {
             isEditMode
@@ -110,22 +207,39 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
         } catch (error) {
             toast.error('Error al guardar el reporte.');
         } finally {
-            setIsLoading(false); // Desactivar estado de carga
+            setIsLoading(false);
         }
     };
 
-    const sectionVariants = {
-        hidden: { opacity: 0, y: 20 },
-        visible: (i) => ({
-            opacity: 1,
-            y: 0,
-            transition: { delay: i * 0.1, type: 'spring', stiffness: 100 }
-        })
+    const changeTab = (tabIndex) => {
+        setActiveTab(tabIndex);
     };
 
-    const inputVariants = {
-        hover: { scale: 1.02, transition: { type: 'spring', stiffness: 300 } },
-        focus: { borderColor: '#E30613', boxShadow: '0 0 8px rgba(227, 6, 19, 0.3)' }
+    // Verifica si todos los campos requeridos de una pestaña están completados
+    const isTabComplete = (tabIndex) => {
+        switch (tabIndex) {
+            case 0: // Cliente
+                return formData.clientName && formData.clientAddress &&
+                    formData.clientPhone && formData.clientDNI;
+            case 1: // Equipo
+                const validType = formData.equipment.type &&
+                    (formData.equipment.type !== 'Otro' || formData.equipment.customType);
+                const validBrand = formData.equipment.brand &&
+                    (formData.equipment.brand !== 'Otro' || formData.equipment.customBrand);
+                return validType && validBrand && formData.equipment.model;
+            case 2: // Servicio
+                return formData.faultDescription && formData.agreedPrice &&
+                    formData.receptionDate && formData.deliveryDate;
+            default:
+                return true;
+        }
+    };
+
+    // Animaciones
+    const tabVariants = {
+        hidden: { opacity: 0, y: 20 },
+        visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+        exit: { opacity: 0, y: -20, transition: { duration: 0.2 } }
     };
 
     const buttonVariants = {
@@ -147,247 +261,124 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
             </motion.button>
 
             <form onSubmit={handleSubmit} className={styles.form}>
-                <div className={styles.columns}>
-                    {/* Columna 1: Información del Cliente e Información del Equipo */}
-                    <div className={styles.column}>
-                        {/* Información del Cliente */}
-                        <motion.section
-                            className={styles.section}
-                            custom={0}
-                            variants={sectionVariants}
-                            initial="hidden"
-                            animate="visible"
+                {/* Navegación de pestañas */}
+                <div className={styles.tabNavigation}>
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            className={`${styles.tabButton} ${activeTab === tab.id ? styles.activeTab : ''} 
+                                ${isTabComplete(tab.id) ? styles.completeTab : ''}`}
+                            onClick={() => changeTab(tab.id)}
                         >
-                            <h3>Información del Cliente</h3>
-                            <div className={styles.grid}>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Nombre del Cliente *</label>
-                                    <input
-                                        name="clientName"
-                                        value={formData.clientName}
-                                        placeholder="Nombre del Cliente"
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Dirección *</label>
-                                    <input
-                                        name="clientAddress"
-                                        value={formData.clientAddress}
-                                        placeholder="Dirección"
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Teléfono *</label>
-                                    <input
-                                        name="clientPhone"
-                                        value={formData.clientPhone}
-                                        placeholder="Teléfono"
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>DNI *</label>
-                                    <input
-                                        name="clientDNI"
-                                        value={formData.clientDNI}
-                                        placeholder="DNI"
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </motion.div>
-                            </div>
-                        </motion.section>
+                            {tab.name}
+                            {isTabComplete(tab.id) && <span className={styles.checkmark}>✓</span>}
+                        </button>
+                    ))}
+                </div>
 
-                        {/* Información del Equipo */}
-                        <motion.section
-                            className={styles.section}
-                            custom={1}
-                            variants={sectionVariants}
-                            initial="hidden"
-                            animate="visible"
-                        >
-                            <h3>Información del Equipo</h3>
-                            <div className={styles.grid}>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Tipo de Equipo *</label>
-                                    <input
-                                        name="type"
-                                        value={formData.equipment.type}
-                                        placeholder="Tipo de Equipo"
-                                        onChange={handleEquipmentChange}
-                                        required
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Marca *</label>
-                                    <input
-                                        name="brand"
-                                        value={formData.equipment.brand}
-                                        placeholder="Marca"
-                                        onChange={handleEquipmentChange}
-                                        required
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Modelo *</label>
-                                    <input
-                                        name="model"
-                                        value={formData.equipment.model}
-                                        placeholder="Modelo"
-                                        onChange={handleEquipmentChange}
-                                        required
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Número de Serie</label>
-                                    <input
-                                        name="serial"
-                                        value={formData.equipment.serial}
-                                        placeholder="Número de Serie"
-                                        onChange={handleEquipmentChange}
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Código Patrimonial</label>
-                                    <input
-                                        name="patrimonialCode"
-                                        value={formData.equipment.patrimonialCode}
-                                        placeholder="Código Patrimonial"
-                                        onChange={handleEquipmentChange}
-                                    />
-                                </motion.div>
-                            </div>
-                        </motion.section>
-                    </div>
-
-                    {/* Columna 2: Detalles del Servicio */}
-                    <div className={styles.column}>
-                        <motion.section
-                            className={styles.section}
-                            custom={2}
-                            variants={sectionVariants}
-                            initial="hidden"
-                            animate="visible"
-                        >
-                            <h3>Detalles del Servicio</h3>
-                            <div className={styles.grid}>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Descripción de la Falla *</label>
-                                    <textarea
-                                        name="faultDescription"
-                                        value={formData.faultDescription}
-                                        placeholder="Descripción de la Falla"
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Observaciones</label>
-                                    <textarea
-                                        name="observations"
-                                        value={formData.observations}
-                                        placeholder="Observaciones"
-                                        onChange={handleChange}
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Tipo de Mantenimiento</label>
-                                    <select
-                                        name="maintenanceType"
-                                        value={formData.maintenanceType}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="Corrective">Correctivo</option>
-                                        <option value="Preventive">Preventivo</option>
-                                    </select>
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Estado</label>
-                                    <select
-                                        name="status"
-                                        value={formData.status}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="Operative">Operativo</option>
-                                        <option value="Inoperative">Inoperativo</option>
-                                    </select>
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Precio Acordado *</label>
-                                    <input
-                                        type="number"
-                                        name="agreedPrice"
-                                        value={formData.agreedPrice}
-                                        placeholder="Precio Acordado"
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Fecha de Recepción *</label>
-                                    <input
-                                        type="date"
-                                        name="receptionDate"
-                                        value={formData.receptionDate}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </motion.div>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Fecha de Entrega *</label>
-                                    <input
-                                        type="date"
-                                        name="deliveryDate"
-                                        value={formData.deliveryDate}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </motion.div>
-                            </div>
-                        </motion.section>
-                    </div>
-
-                    {/* Columna 3: Solicitud de Partes e Información Adicional */}
-                    <div className={styles.column}>
-                        {/* Solicitud de Partes (solo visible en modo edición) */}
-                        {isEditMode && (
-                            <motion.section
-                                className={styles.section}
-                                custom={3}
-                                variants={sectionVariants}
+                {/* Contenido de las pestañas */}
+                <div className={styles.tabContent}>
+                    <AnimatePresence mode="wait">
+                        {/* Tab 0: Cliente */}
+                        {activeTab === 0 && (
+                            <motion.div
+                                key="tab-cliente"
+                                variants={tabVariants}
                                 initial="hidden"
                                 animate="visible"
+                                exit="exit"
+                                className={styles.tabPanel}
                             >
-                                <h3>Solicitud de Partes</h3>
-                                <div className={styles.checkboxGroup}>
-                                    <label className={styles.checkboxLabel}>
+                                <h3 className={styles.tabTitle}>Información del Cliente</h3>
+                                <div className={styles.formGrid}>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Nombre del Cliente *</label>
                                         <input
-                                            type="checkbox"
-                                            name="partsRequested"
-                                            checked={formData.partsRequested}
+                                            name="clientName"
+                                            value={formData.clientName}
+                                            placeholder="Nombre del Cliente"
                                             onChange={handleChange}
-                                            disabled={isTechnician} // Los técnicos no pueden cambiar esto
+                                            required
                                         />
-                                        Necesita Partes
-                                    </label>
-                                    <label className={styles.checkboxLabel}>
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Dirección *</label>
                                         <input
-                                            type="checkbox"
-                                            name="partsOrdered"
-                                            checked={formData.partsOrdered}
+                                            name="clientAddress"
+                                            value={formData.clientAddress}
+                                            placeholder="Dirección"
                                             onChange={handleChange}
-                                            disabled={isTechnician} // Los técnicos no pueden cambiar esto
+                                            required
                                         />
-                                        Partes Solicitadas
-                                    </label>
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Teléfono *</label>
+                                        <input
+                                            name="clientPhone"
+                                            value={formData.clientPhone}
+                                            placeholder="Teléfono"
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>DNI *</label>
+                                        <input
+                                            name="clientDNI"
+                                            value={formData.clientDNI}
+                                            placeholder="DNI"
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
                                 </div>
-                                <AnimatePresence>
-                                    {formData.partsRequested && (
+
+                                <div className={styles.tabNavButtons}>
+                                    <div></div> {/* Spacer */}
+                                    <motion.button
+                                        type="button"
+                                        className={styles.nextButton}
+                                        onClick={() => changeTab(1)}
+                                        variants={buttonVariants}
+                                        whileHover="hover"
+                                        whileTap="tap"
+                                        disabled={!isTabComplete(0)}
+                                    >
+                                        Siguiente <span>→</span>
+                                    </motion.button>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {/* Tab 1: Equipo */}
+                        {activeTab === 1 && (
+                            <motion.div
+                                key="tab-equipo"
+                                variants={tabVariants}
+                                initial="hidden"
+                                animate="visible"
+                                exit="exit"
+                                className={styles.tabPanel}
+                            >
+                                <h3 className={styles.tabTitle}>Información del Equipo</h3>
+                                <div className={styles.formGrid}>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Tipo de Equipo *</label>
+                                        <select
+                                            name="type"
+                                            value={formData.equipment.type}
+                                            onChange={handleEquipmentChange}
+                                            required
+                                        >
+                                            <option value="">Seleccionar tipo</option>
+                                            {EQUIPMENT_TYPES.map((type) => (
+                                                <option key={type} value={type}>{type}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {showCustomType && (
                                         <motion.div
                                             className={styles.inputWrapper}
                                             initial={{ opacity: 0, height: 0 }}
@@ -395,54 +386,385 @@ const ReportForm = ({ refreshReports, initialData = {}, isEditMode = false, clos
                                             exit={{ opacity: 0, height: 0 }}
                                             transition={{ duration: 0.3 }}
                                         >
-                                            <label>Detalles de las Partes</label>
-                                            <textarea
-                                                name="partsDetails"
-                                                value={formData.partsDetails}
-                                                placeholder="Detalles de las Partes"
-                                                onChange={handleChange}
+                                            <label>Especificar Tipo *</label>
+                                            <input
+                                                name="customType"
+                                                value={formData.equipment.customType}
+                                                placeholder="Especificar tipo de equipo"
+                                                onChange={handleEquipmentChange}
+                                                required={showCustomType}
                                             />
                                         </motion.div>
                                     )}
-                                </AnimatePresence>
-                            </motion.section>
+
+                                    <div className={styles.inputWrapper}>
+                                        <label>Marca *</label>
+                                        <select
+                                            name="brand"
+                                            value={formData.equipment.brand}
+                                            onChange={handleEquipmentChange}
+                                            required
+                                        >
+                                            <option value="">Seleccionar marca</option>
+                                            {EQUIPMENT_BRANDS.map((brand) => (
+                                                <option key={brand} value={brand}>{brand}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {showCustomBrand && (
+                                        <motion.div
+                                            className={styles.inputWrapper}
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            transition={{ duration: 0.3 }}
+                                        >
+                                            <label>Especificar Marca *</label>
+                                            <input
+                                                name="customBrand"
+                                                value={formData.equipment.customBrand}
+                                                placeholder="Especificar marca"
+                                                onChange={handleEquipmentChange}
+                                                required={showCustomBrand}
+                                            />
+                                        </motion.div>
+                                    )}
+
+                                    <div className={styles.inputWrapper}>
+                                        <label>Modelo *</label>
+                                        <input
+                                            name="model"
+                                            value={formData.equipment.model}
+                                            placeholder="Modelo"
+                                            onChange={handleEquipmentChange}
+                                            required
+                                        />
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Número de Serie</label>
+                                        <input
+                                            name="serial"
+                                            value={formData.equipment.serial}
+                                            placeholder="Número de Serie"
+                                            onChange={handleEquipmentChange}
+                                        />
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Código Patrimonial</label>
+                                        <input
+                                            name="patrimonialCode"
+                                            value={formData.equipment.patrimonialCode}
+                                            placeholder="Código Patrimonial"
+                                            onChange={handleEquipmentChange}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className={styles.tabNavButtons}>
+                                    <motion.button
+                                        type="button"
+                                        className={styles.prevButton}
+                                        onClick={() => changeTab(0)}
+                                        variants={buttonVariants}
+                                        whileHover="hover"
+                                        whileTap="tap"
+                                    >
+                                        <span>←</span> Anterior
+                                    </motion.button>
+                                    <motion.button
+                                        type="button"
+                                        className={styles.nextButton}
+                                        onClick={() => changeTab(2)}
+                                        variants={buttonVariants}
+                                        whileHover="hover"
+                                        whileTap="tap"
+                                        disabled={!isTabComplete(1)}
+                                    >
+                                        Siguiente <span>→</span>
+                                    </motion.button>
+                                </div>
+                            </motion.div>
                         )}
 
-                        {/* Información Adicional */}
-                        <motion.section
-                            className={styles.section}
-                            custom={isEditMode ? 4 : 3}
-                            variants={sectionVariants}
-                            initial="hidden"
-                            animate="visible"
-                        >
-                            <h3>Información Adicional</h3>
-                            <div className={styles.grid}>
-                                <motion.div className={styles.inputWrapper} whileHover="hover" whileFocus="focus" variants={inputVariants}>
-                                    <label>Adjuntar Archivo</label>
-                                    <input
-                                        type="file"
-                                        onChange={handleFileChange}
-                                    />
-                                    {formData.files && <span className={styles.fileName}>{formData.files.name}</span>}
-                                </motion.div>
-                            </div>
-                        </motion.section>
-                    </div>
-                </div>
+                        {/* Tab 2: Servicio */}
+                        {activeTab === 2 && (
+                            <motion.div
+                                key="tab-servicio"
+                                variants={tabVariants}
+                                initial="hidden"
+                                animate="visible"
+                                exit="exit"
+                                className={styles.tabPanel}
+                            >
+                                <h3 className={styles.tabTitle}>Detalles del Servicio</h3>
+                                <div className={styles.formGrid}>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Descripción de la Falla *</label>
+                                        <textarea
+                                            name="faultDescription"
+                                            value={formData.faultDescription}
+                                            placeholder="Descripción de la Falla"
+                                            onChange={handleChange}
+                                            required
+                                            rows={3}
+                                        />
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Observaciones</label>
+                                        <textarea
+                                            name="observations"
+                                            value={formData.observations}
+                                            placeholder="Observaciones"
+                                            onChange={handleChange}
+                                            rows={3}
+                                        />
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Tipo de Mantenimiento</label>
+                                        <select
+                                            name="maintenanceType"
+                                            value={formData.maintenanceType}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="Corrective">Correctivo</option>
+                                            <option value="Preventive">Preventivo</option>
+                                        </select>
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Estado</label>
+                                        <select
+                                            name="status"
+                                            value={formData.status}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="Operative">Operativo</option>
+                                            <option value="Inoperative">Inoperativo</option>
+                                        </select>
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Precio Acordado *</label>
+                                        <input
+                                            type="number"
+                                            name="agreedPrice"
+                                            value={formData.agreedPrice}
+                                            placeholder="Precio Acordado"
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Fecha de Recepción *</label>
+                                        <input
+                                            type="date"
+                                            name="receptionDate"
+                                            value={formData.receptionDate}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Fecha de Entrega *</label>
+                                        <input
+                                            type="date"
+                                            name="deliveryDate"
+                                            value={formData.deliveryDate}
+                                            onChange={handleChange}
+                                            required
+                                        />
+                                    </div>
+                                </div>
 
-                {/* Botones */}
-                <div className={styles.buttonGroup}>
-                    <motion.button
-                        type="submit"
-                        className={styles.submitButton}
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                        disabled={isLoading}
-                    >
-                        {isLoading ? 'Guardando...' : isEditMode ? 'Actualizar' : 'Crear'}
-                    </motion.button>
+                                <div className={styles.tabNavButtons}>
+                                    <motion.button
+                                        type="button"
+                                        className={styles.prevButton}
+                                        onClick={() => changeTab(1)}
+                                        variants={buttonVariants}
+                                        whileHover="hover"
+                                        whileTap="tap"
+                                    >
+                                        <span>←</span> Anterior
+                                    </motion.button>
+                                    <motion.button
+                                        type="button"
+                                        className={styles.nextButton}
+                                        onClick={() => changeTab(isEditMode ? 3 : 4)}
+                                        variants={buttonVariants}
+                                        whileHover="hover"
+                                        whileTap="tap"
+                                        disabled={!isTabComplete(2)}
+                                    >
+                                        Siguiente <span>→</span>
+                                    </motion.button>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {/* Tab 3: Partes (Solo en modo edición) */}
+                        {isEditMode && activeTab === 3 && (
+                            <motion.div
+                                key="tab-partes"
+                                variants={tabVariants}
+                                initial="hidden"
+                                animate="visible"
+                                exit="exit"
+                                className={styles.tabPanel}
+                            >
+                                <h3 className={styles.tabTitle}>Solicitud de Partes</h3>
+                                <div className={styles.formGrid}>
+                                    <div className={styles.checkboxContainer}>
+                                        <label className={styles.checkboxLabel}>
+                                            <input
+                                                type="checkbox"
+                                                name="partsRequested"
+                                                checked={formData.partsRequested}
+                                                onChange={handleChange}
+                                                disabled={isTechnician}
+                                            />
+                                            Necesita Partes
+                                        </label>
+
+                                        <label className={styles.checkboxLabel}>
+                                            <input
+                                                type="checkbox"
+                                                name="partsOrdered"
+                                                checked={formData.partsOrdered}
+                                                onChange={handleChange}
+                                                disabled={isTechnician}
+                                            />
+                                            Partes Solicitadas
+                                        </label>
+
+                                        <label className={styles.checkboxLabel}>
+                                            <input
+                                                type="checkbox"
+                                                name="readyForPickup"
+                                                checked={formData.readyForPickup}
+                                                onChange={handleChange}
+                                            />
+                                            Listo para Retiro
+                                        </label>
+                                    </div>
+
+                                    <AnimatePresence>
+                                        {formData.partsRequested && (
+                                            <motion.div
+                                                className={styles.inputWrapper}
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                transition={{ duration: 0.3 }}
+                                            >
+                                                <label>Detalles de las Partes</label>
+                                                <textarea
+                                                    name="partsDetails"
+                                                    value={formData.partsDetails}
+                                                    placeholder="Detalles de las Partes"
+                                                    onChange={handleChange}
+                                                    rows={4}
+                                                />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                <div className={styles.tabNavButtons}>
+                                    <motion.button
+                                        type="button"
+                                        className={styles.prevButton}
+                                        onClick={() => changeTab(2)}
+                                        variants={buttonVariants}
+                                        whileHover="hover"
+                                        whileTap="tap"
+                                    >
+                                        <span>←</span> Anterior
+                                    </motion.button>
+                                    <motion.button
+                                        type="button"
+                                        className={styles.nextButton}
+                                        onClick={() => changeTab(4)}
+                                        variants={buttonVariants}
+                                        whileHover="hover"
+                                        whileTap="tap"
+                                    >
+                                        Siguiente <span>→</span>
+                                    </motion.button>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {/* Tab 4 o 3: Información Adicional */}
+                        {activeTab === (isEditMode ? 4 : 3) && (
+                            <motion.div
+                                key="tab-adicional"
+                                variants={tabVariants}
+                                initial="hidden"
+                                animate="visible"
+                                exit="exit"
+                                className={styles.tabPanel}
+                            >
+                                <h3 className={styles.tabTitle}>Información Adicional</h3>
+                                <div className={styles.formGrid}>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Adjuntar Archivo</label>
+                                        <input
+                                            type="file"
+                                            onChange={handleFileChange}
+                                            className={styles.fileInput}
+                                        />
+                                        {formData.files && <span className={styles.fileName}>{formData.files.name}</span>}
+                                    </div>
+                                    <div className={styles.inputWrapper}>
+                                        <label>Comentarios Adicionales</label>
+                                        <textarea
+                                            name="comments"
+                                            value={formData.comments}
+                                            placeholder="Comentarios Adicionales"
+                                            onChange={handleChange}
+                                            rows={4}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Botones de acción final */}
+                                <div className={styles.tabNavButtons}>
+                                    <motion.button
+                                        type="button"
+                                        className={styles.prevButton}
+                                        onClick={() => changeTab(isEditMode ? 3 : 2)}
+                                        variants={buttonVariants}
+                                        whileHover="hover"
+                                        whileTap="tap"
+                                    >
+                                        <span>←</span> Anterior
+                                    </motion.button>
+                                    <div className={styles.finalButtonGroup}>
+                                        <motion.button
+                                            type="button"
+                                            className={styles.cancelButton}
+                                            onClick={closeModal}
+                                            variants={buttonVariants}
+                                            whileHover={{ scale: 1.05, backgroundColor: '#666' }}
+                                            whileTap={{ scale: 0.95 }}
+                                        >
+                                            Cancelar
+                                        </motion.button>
+                                        <motion.button
+                                            type="submit"
+                                            className={styles.submitButton}
+                                            variants={buttonVariants}
+                                            whileHover="hover"
+                                            whileTap="tap"
+                                            disabled={isLoading}
+                                        >
+                                            {isLoading ? 'Guardando...' : isEditMode ? 'Actualizar' : 'Crear'}
+                                        </motion.button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </form>
         </div>
